@@ -90,23 +90,32 @@ Consumer<T> operator+(Consumer<T> c1, Consumer<T> c2) {
 }
 
 // Producers are functors (i.e., value containers supporting a map function).
-template <typename A, typename B> using Map = std::function<B(A)>;
+template <typename A, typename B> using Fn = std::function<B(A)>;
 
 template <typename A, typename B>
-Producer<B> Fmap(Map<A, B> f, Producer<A> p) {
+Producer<B> Fmap(Fn<A, B> f, Producer<A> p) {
   return {
     [=](Consumer<B> c_B) {
-      Consumer<A> c_A{ [=](A a) { c_B(f(a)); } };
+      Consumer<A> c_A{ [=](A x) { c_B(f(x)); } };
       p(c_A);
     }
   };
 }
 
+// Consumers are cofunctors.
+template <typename A, typename B>
+Consumer<B> Cofmap(Fn<B, A> f, Consumer<A> c) {
+  return {
+    [=](B x) { c(f(x)); }
+  };
+}
+
+
 // Producers are also monads.
 template <typename A>
-Producer<A> MUnit(A a) {
+Producer<A> MUnit(A x) {
   return {
-    [=](Consumer<A> c) { c(a); }
+    [=](Consumer<A> c) { c(x); }
   };
 }
 
@@ -121,12 +130,12 @@ Producer<A> MJoin(Producer<Producer<A>> p_PA) {
 }
 
 template <typename A, typename B>
-Producer<B> MBind(Producer<A> p, Map<A, Producer<B>> f) {
+Producer<B> MBind(Producer<A> p, Fn<A, Producer<B>> f) {
   return MJoin(Fmap(f, p));
 }
 
 template <typename A, typename B>
-Producer<B> operator|(Producer<A> p, Map<A, Producer<B>> f) {
+Producer<B> operator|(Producer<A> p, Fn<A, Producer<B>> f) {
   return MBind(p, f);
 }
 
@@ -174,8 +183,11 @@ Producer<int> TenTwentyThirty(int x) {
 }
 
 int main() {
-  Producer<int> p123 {Produce({1, 2, 3})};
-  Map<int, Producer<int>> ttt {TenTwentyThirty};
-  Producer<int> p123ttt {p123 | ttt};
-  Fuse(p123 | ttt, Print<int>())();
+  static Fn<Producer<int>, Effect> pipeline {
+    [](Producer<int> p) {
+      Fn<int, Producer<int>> ttt{TenTwentyThirty};
+      return Fuse(p | ttt, Print<int>());
+    }};
+  pipeline(Produce({1, 2, 3}))();
+  pipeline(Produce({0}))();
 }
