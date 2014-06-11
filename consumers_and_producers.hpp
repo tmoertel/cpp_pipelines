@@ -1,9 +1,6 @@
 // An algebraic library for building pipelines.
 
-#include <initializer_list>
-#include <iostream>
 #include <functional>
-#include <vector>
 
 //==============================================================================
 // CORE MODEL
@@ -78,7 +75,7 @@ Producer<T> operator+(Producer<T> p1, Producer<T> p2) {
 template <typename T>
 Consumer<T> CZero() {
   return {
-    [](Consumer<T> /*c*/) { /* do nothing */ }
+    [](T /*x*/) { /* do nothing */ }
   };
 }
 
@@ -137,57 +134,4 @@ Producer<B> MBind(Producer<A> p, Fn<A, Producer<B>> f) {
 template <typename A, typename B>
 Producer<B> operator|(Producer<A> p, Fn<A, Producer<B>> f) {
   return MBind(p, f);
-}
-
-//==============================================================================
-// EXAMPLES
-//==============================================================================
-
-template<typename T>
-Consumer<T> Print() {
-  return {
-    [](T t) { std::cout << t << std::endl; }
-  };
-}
-
-template<typename Container, typename T = typename Container::value_type>
-Producer<T> Produce(Container ts) {
-  return {
-    [=](Consumer<T> c) {
-      for (auto& t : ts) {
-        c(t);
-      }
-    }
-  };
-}
-
-template<typename T>
-Producer<T> Produce(std::initializer_list<T> ts) {
-  return {
-    [=](Consumer<T> c) {
-      for (auto& t : ts) {
-        c(t);
-      }
-    }
-  };
-}
-
-Producer<int> TenTwentyThirty(int x) {
-  return {
-    [=](Consumer<int> c) {
-      c(10 + x);
-      c(20 + x);
-      c(30 + x);
-    }
-  };
-}
-
-int main() {
-  static Fn<Producer<int>, Effect> pipeline {
-    [](Producer<int> p) {
-      Fn<int, Producer<int>> ttt{TenTwentyThirty};
-      return Fuse(p | ttt, Print<int>());
-    }};
-  pipeline(Produce({1, 2, 3}))();
-  pipeline(Produce({0}))();
 }
