@@ -1,3 +1,6 @@
 *~
 *.o
 consumers_and_producers_test
+*.gcda
+*.gcno
+coverage/

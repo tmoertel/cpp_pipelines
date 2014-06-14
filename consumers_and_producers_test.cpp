@@ -1,4 +1,4 @@
-// An algebraic library for building pipelines.
+// Tests for an algebraic library for building pipelines.
 
 #include "consumers_and_producers.hpp"
 
