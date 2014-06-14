@@ -12,7 +12,7 @@
 namespace {
 
 template<typename T>
-Producer<T> Produce(std::initializer_list<T> ts) {
+Producer<T> Produce(std::vector<T> ts) {
   return {
     [=](Consumer<T> c) {
       for (auto& t : ts) {
@@ -42,8 +42,8 @@ class CPTest : public ::testing::Test {
             this->flight_record_.push_back({x, "c2-2"});
           }}}} {}
 
-  using Value = const char*;
-  using EffectRecord = std::pair<std::string, std::string>;
+  using Value = std::string;
+  using EffectRecord = std::pair<Value, Value>;
   std::vector<EffectRecord> flight_record_;
   std::vector<Producer<Value>> producers_;
   std::vector<Consumer<Value>> consumers_;
@@ -56,17 +56,6 @@ class CPTest : public ::testing::Test {
     p(c);
     return flight_record_;
   }
-
-  class StringBank {
-  public:
-    const char* operator()(const std::string& s) {
-      store_.emplace_back(s);
-      return store_.back().c_str();
-    };
-
-  private:
-    std::vector<std::string> store_;
-  };
 };
 
 }  // namespace
@@ -113,10 +102,9 @@ TEST_F(CPTest, ProducerMustObeyMonadLaws) {
   Fn<Value, Producer<Value>> MUnitFn{MUnit<Value>};
   for (const auto& c : consumers_) {
     for (const Value& s_f : {"f1", "f2", "f3"}) {
-      StringBank S1;
       // Arbitrary function f of type a -> m b.
       Fn<Value, Producer<Value>> f {
-        [&](const Value& x) { return MUnit(S1(std::string(x) + s_f)); }
+        [&](const Value& x) { return MUnit(x + s_f); }
       };
 
       // Left identity.
@@ -130,12 +118,10 @@ TEST_F(CPTest, ProducerMustObeyMonadLaws) {
 
         // Associativity.
         for (const Value& s_g : {"g1", "g2", "g3"}) {
-          StringBank S2;
           // Arbitrary function g of type a -> m b.
           Fn<Value, Producer<Value>> g {
             [&](const Value& x) {
-              return (MUnit(S2(std::string(x) + s_g)) +
-                      MUnit(S2(std::string(s_g) + x)));
+              return MUnit(x + s_g) + MUnit(s_g + x);
             }
           };
           EXPECT_EQ(Fusing(p | f | g, c), Fusing(p | (f * g), c));
