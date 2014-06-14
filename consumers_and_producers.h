@@ -1,4 +1,4 @@
-// An algebraic library for building pipelines.
+// An algebraic library for building pipelines.  -*- c++ -*-
 
 #include <functional>
 

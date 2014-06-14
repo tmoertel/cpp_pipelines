@@ -1,6 +1,6 @@
 // Tests for an algebraic library for building pipelines.
 
-#include "consumers_and_producers.hpp"
+#include "consumers_and_producers.h"
 
 #include <initializer_list>
 #include <functional>

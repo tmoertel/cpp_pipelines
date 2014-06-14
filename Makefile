@@ -17,7 +17,7 @@ coverage: consumers_and_producers_test
 	genhtml -o coverage coverage/test.info
 	@echo "### Coverage report is in file://$$(pwd)/coverage/index.html"
 
-%: %.cpp
+%: %.cc
 	g++ --std=c++11 $(test_flags) -o $@ $?
 
 clean:
