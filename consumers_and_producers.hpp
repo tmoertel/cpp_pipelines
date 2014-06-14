@@ -131,7 +131,22 @@ Producer<B> MBind(Producer<A> p, Fn<A, Producer<B>> f) {
   return MJoin(Fmap(f, p));
 }
 
+// Infix version of bind.
 template <typename A, typename B>
 Producer<B> operator|(Producer<A> p, Fn<A, Producer<B>> f) {
   return MBind(p, f);
+}
+
+template <typename A, typename B, typename C>
+Fn<A, Producer<C>> KleisliComposition(Fn<A, Producer<B>> f,
+                                      Fn<B, Producer<C>> g) {
+  return {
+    [=](A x) { return f(x) | g; }
+  };
+}
+
+// Infix version of KleisliComposition.
+template <typename A, typename B, typename C>
+Fn<A, Producer<C>> operator*(Fn<A, Producer<B>> f, Fn<B, Producer<C>> g) {
+  return KleisliComposition(f, g);
 }

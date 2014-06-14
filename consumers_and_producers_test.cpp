@@ -112,19 +112,19 @@ TEST_F(CPTest, ProducerMustObeyMonoidLaws) {
 TEST_F(CPTest, ProducerMustObeyMonadLaws) {
   Fn<Value, Producer<Value>> MUnitFn{MUnit<Value>};
   for (const auto& c : consumers_) {
-    for (const auto& p : producers_) {
-      for (const Value& s_f : {"f1", "f2", "f3"}) {
-        StringBank S1;
-        // Arbitrary function f of type a -> m b.
-        Fn<Value, Producer<Value>> f {
-          [&](const Value& x) { return MUnit(S1(std::string(x) + s_f)); }
-        };
+    for (const Value& s_f : {"f1", "f2", "f3"}) {
+      StringBank S1;
+      // Arbitrary function f of type a -> m b.
+      Fn<Value, Producer<Value>> f {
+        [&](const Value& x) { return MUnit(S1(std::string(x) + s_f)); }
+      };
 
-        // Left identity.
-        for (const Value& a : {"a1", "a2", "a3"}) {
-          EXPECT_EQ(Fusing(MUnit(a) | f, c), Fusing(f(a), c));
-        }
+      // Left identity.
+      for (const Value& a : {"a1", "a2", "a3"}) {
+        EXPECT_EQ(Fusing(MUnit(a) | f, c), Fusing(f(a), c));
+      }
 
+      for (const auto& p : producers_) {
         // Right identity.
         EXPECT_EQ(Fusing(p | MUnitFn, c), Fusing(p, c));
 
@@ -138,11 +138,7 @@ TEST_F(CPTest, ProducerMustObeyMonadLaws) {
                       MUnit(S2(std::string(s_g) + x)));
             }
           };
-          // Kleisli composition of f and g.
-          Fn<Value, Producer<Value>> fg {
-            [&](Value x) { return f(x) | g; }
-          };
-          EXPECT_EQ(Fusing(p | f | g, c), Fusing(p | fg, c));
+          EXPECT_EQ(Fusing(p | f | g, c), Fusing(p | (f * g), c));
         }
       }
     }
