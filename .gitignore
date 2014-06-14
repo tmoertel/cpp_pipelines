@@ -3,4 +3,7 @@
 consumers_and_producers_test
 *.gcda
 *.gcno
+*.pb.h
+*.pb.cc
 coverage/
+/examples/protobuf-traversal/proto_accessors_test

@@ -1,0 +1,18 @@
+package example;
+
+message Person {
+  required string name = 1;
+};
+
+message Team {
+  optional string name = 1;
+  optional Person manager = 2;
+  repeated Person members = 3;
+}
+
+message Company {
+  required string name = 1;
+  required Person president = 2;
+  repeated Team teams = 3;
+  repeated Person support_staff = 4;
+};

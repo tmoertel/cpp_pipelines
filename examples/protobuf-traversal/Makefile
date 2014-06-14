@@ -1,0 +1,8 @@
+objects = example.pb.o
+tests = proto_accessors_test
+include ../../rules.mk
+
+link_flags := -lprotobuf
+
+%.pb.cc %.pb.h: %.proto
+	protoc --cpp_out=. $<
