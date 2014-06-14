@@ -9,8 +9,6 @@
 
 #include "gtest/gtest.h"
 
-namespace {
-
 template<typename T>
 Producer<T> Produce(std::vector<T> ts) {
   return {
@@ -57,8 +55,6 @@ class CPTest : public ::testing::Test {
     return flight_record_;
   }
 };
-
-}  // namespace
 
 TEST_F(CPTest, ConsumerMustObeyMonoidLaws) {
   auto zero = CZero<Value>();

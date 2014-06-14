@@ -21,4 +21,4 @@ coverage: consumers_and_producers_test
 	g++ --std=c++11 $(test_flags) -o $@ $?
 
 clean:
-	rm -rf consumers_and_producers_test coverage
+	rm -rf consumers_and_producers_test coverage *.gc{da,no}
