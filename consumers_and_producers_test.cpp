@@ -31,13 +31,13 @@ class CPTest : public ::testing::Test {
     consumers_{{
         CZero<Value>(),
         Consumer<Value>{
-          [&](Value x) {
-            this->flight_record_.push_back({x, "c1"});
+          [this](Value x) {
+            flight_record_.emplace_back(x, "c1");
           }},
         Consumer<Value>{
-          [&](Value x) {
-            this->flight_record_.push_back({x, "c2-1"});
-            this->flight_record_.push_back({x, "c2-2"});
+          [this](Value x) {
+            flight_record_.emplace_back(x, "c2-1");
+            flight_record_.emplace_back(x, "c2-2");
           }}}} {}
 
   using Value = std::string;
