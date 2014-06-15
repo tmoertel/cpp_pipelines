@@ -12,7 +12,5 @@ message Team {
 
 message Company {
   required string name = 1;
-  required Person president = 2;
   repeated Team teams = 3;
-  repeated Person support_staff = 4;
 };
