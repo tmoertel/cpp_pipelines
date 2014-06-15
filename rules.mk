@@ -27,7 +27,7 @@ coverage: $(tests)
 
 .PHONY: clean
 clean:
-	rm -rf $(tests) coverage *.gc{da,no}
+	rm -rf $(tests) $(objects) coverage *.gc{da,no}
 
 %: %.cc
 	g++ --std=c++11 $(test_flags) $(link_flags) -o $@ $< $(objects)
