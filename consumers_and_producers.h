@@ -6,7 +6,7 @@
 // CORE MODEL
 //==============================================================================
 
-// Let's introduce a lightweight alias for function types.
+// Let's introduce a lightweight notation for function types.
 template <typename A, typename B> using Fn = std::function<B(A)>;
 
 // A consumer is a value sink. It can be called on values of type T
@@ -18,7 +18,7 @@ public:
   Consumer(Fn<T, void> f) : f_(f) {}
   void operator()(T t) const { f_(t); }
 private:
-  std::function<void(T)> f_;
+  Fn<T, void> f_;
 };
 
 // A producer is a value source. It can be called on a corresponding
@@ -32,7 +32,7 @@ public:
   Producer(Fn<Consumer<T>, void> f) : f_(f) {}
   void operator()(Consumer<T> c) const { f_(c); }
 private:
-  std::function<void(Consumer<T>)> f_;
+  Fn<Consumer<T>, void> f_;
 };
 
 // A filter takes an A and from it produces Bs.
