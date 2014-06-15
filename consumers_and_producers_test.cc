@@ -95,11 +95,11 @@ TEST_F(CPTest, ProducerMustObeyMonoidLaws) {
 //   Right identity:  m >>= return    ≡ m
 //   Associativity:   (m >>= f) >>= g ≡ m >>= (\x -> f x >>= g)
 TEST_F(CPTest, ProducerMustObeyMonadLaws) {
-  Fn<Value, Producer<Value>> MUnitFn{MUnit<Value>};
+  Filter<Value, Value> MUnitFn{MUnit<Value>};
   for (const auto& c : consumers_) {
     for (const Value& s_f : {"f1", "f2", "f3"}) {
       // Arbitrary function f of type a -> m b.
-      Fn<Value, Producer<Value>> f {
+      Filter<Value, Value> f {
         [&](const Value& x) { return MUnit(x + s_f); }
       };
 
@@ -115,7 +115,7 @@ TEST_F(CPTest, ProducerMustObeyMonadLaws) {
         // Associativity.
         for (const Value& s_g : {"g1", "g2", "g3"}) {
           // Arbitrary function g of type a -> m b.
-          Fn<Value, Producer<Value>> g {
+          Filter<Value, Value> g {
             [&](const Value& x) {
               return MUnit(x + s_g) + MUnit(s_g + x);
             }

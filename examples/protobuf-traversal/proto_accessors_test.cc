@@ -31,29 +31,29 @@ Producer<const T*> Produce(const google::protobuf::RepeatedPtrField<T>& ts) {
 }
 
 // Produce the name of a person if the person has one.
-static Fn<const Person*, Producer<const std::string*>> PersonName{
+static Filter<const Person*, const std::string*> PersonName{
     [](const Person* p) { return MUnit(&p->name()); }
 };
 
 // Produce the teams within a company.
-static Fn<const Company*, Producer<const Team*>> CompanyTeams{
+static Filter<const Company*, const Team*> CompanyTeams{
   [](const Company* p) { return Produce(p->teams()); }
 };
 
 // Produce the manager of a team if the team has one.
-static Fn<const Team*, Producer<const Person*>> TeamManager{
+static Filter<const Team*, const Person*> TeamManager{
   [](const Team* p) {
     return p->has_manager() ? MUnit(&p->manager()) : PZero<const Person*>();
   }
 };
 
 // Produce the members of a team.
-static Fn<const Team*, Producer<const Person*>> TeamMembers{
+static Filter<const Team*, const Person*> TeamMembers{
   [](const Team* p) { return Produce(p->members()); }
 };
 
 // Produce the name of a team if it has one.
-static Fn<const Team*, Producer<const std::string*>> TeamName{
+static Filter<const Team*, const std::string*> TeamName{
   [](const Team* p) {
     return p->has_name() ? MUnit(&p->name()) : PZero<const std::string*>();
   }

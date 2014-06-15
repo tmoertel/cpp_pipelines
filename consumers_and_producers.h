@@ -6,13 +6,16 @@
 // CORE MODEL
 //==============================================================================
 
+// Let's introduce a lightweight alias for function types.
+template <typename A, typename B> using Fn = std::function<B(A)>;
+
 // A consumer is a value sink. It can be called on values of type T
 // to consume them.
 template <typename T>
 class Consumer {
 public:
   typedef T value_type;
-  Consumer(std::function<void(T)> f) : f_(f) {}
+  Consumer(Fn<T, void> f) : f_(f) {}
   void operator()(T t) const { f_(t); }
 private:
   std::function<void(T)> f_;
@@ -26,11 +29,14 @@ template <typename T>
 class Producer {
 public:
   typedef T value_type;
-  Producer(std::function<void(Consumer<T>)> f) : f_(f) {}
+  Producer(Fn<Consumer<T>, void> f) : f_(f) {}
   void operator()(Consumer<T> c) const { f_(c); }
 private:
   std::function<void(Consumer<T>)> f_;
 };
+
+// A filter takes an A and from it produces Bs.
+template <typename A, typename B> using Filter = Fn<A, Producer<B>>;
 
 //==============================================================================
 // COMBINATORS
@@ -87,8 +93,6 @@ Consumer<T> operator+(Consumer<T> c1, Consumer<T> c2) {
 }
 
 // Producers are functors (i.e., value containers supporting a map function).
-template <typename A, typename B> using Fn = std::function<B(A)>;
-
 template <typename A, typename B>
 Producer<B> Fmap(Fn<A, B> f, Producer<A> p) {
   return {
@@ -106,7 +110,6 @@ Consumer<B> Cofmap(Fn<B, A> f, Consumer<A> c) {
     [=](B x) { c(f(x)); }
   };
 }
-
 
 // Producers are also monads.
 template <typename A>
@@ -127,19 +130,19 @@ Producer<A> MJoin(Producer<Producer<A>> p_PA) {
 }
 
 template <typename A, typename B>
-Producer<B> MBind(Producer<A> p, Fn<A, Producer<B>> f) {
+Producer<B> MBind(Producer<A> p, Filter<A, B> f) {
   return MJoin(Fmap(f, p));
 }
 
 // Infix version of bind.
 template <typename A, typename B>
-Producer<B> operator|(Producer<A> p, Fn<A, Producer<B>> f) {
+Producer<B> operator|(Producer<A> p, Filter<A, B> f) {
   return MBind(p, f);
 }
 
+// Filters can be composed (value serial) to form chained filters.
 template <typename A, typename B, typename C>
-Fn<A, Producer<C>> KleisliComposition(Fn<A, Producer<B>> f,
-                                      Fn<B, Producer<C>> g) {
+Filter<A, C> KleisliComposition(Filter<A, B> f, Filter<B, C> g) {
   return {
     [=](A x) { return f(x) | g; }
   };
@@ -147,6 +150,15 @@ Fn<A, Producer<C>> KleisliComposition(Fn<A, Producer<B>> f,
 
 // Infix version of KleisliComposition.
 template <typename A, typename B, typename C>
-Fn<A, Producer<C>> operator*(Fn<A, Producer<B>> f, Fn<B, Producer<C>> g) {
+Filter<A, C> operator*(Filter<A, B> f, Filter<B, C> g) {
   return KleisliComposition(f, g);
+}
+
+// Filters can be composed (value parallel) to form Y filters.
+// Law: (filter1 + filter2)(x) = filter1(x) + filter2(x)
+template <typename A, typename B>
+Filter<A, B> operator+(Filter<A, B> f, Filter<A, B> g) {
+  return {
+    [=](A x) { return f(x) + g(x); }
+  };
 }
