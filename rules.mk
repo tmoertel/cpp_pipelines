@@ -10,6 +10,8 @@ gtest_flags = $$(gtest-config --cppflags --cxxflags --ldflags --libs)
 test_flags  = $(gtest_flags) -fprofile-arcs -ftest-coverage
 link_flags := $(link_flags) -lgcov
 
+obj_cc_files = $(objects:.o=.cc)
+
 test: $(tests)
 	for t in $?; do echo "### Running $t ###"; ./$$t; done
 .PHONY: test
@@ -17,10 +19,10 @@ test: $(tests)
 $(tests): $(objects)
 
 .PHONY: coverage
-coverage: $(tests)
+coverage: $(tests) $(obj_cc_files)
 	mkdir -p coverage
 	lcov --directory . --zerocounters
-	for t in $?; do echo "### Running $$t ###"; ./$$t; done
+	for t in $(tests); do echo "### Running $$t ###"; ./$$t; done
 	lcov --directory . --capture --output-file coverage/test.info
 	genhtml -o coverage coverage/test.info
 	@echo "### Coverage report is in file://$$(pwd)/coverage/index.html"
