@@ -18,22 +18,18 @@ namespace example {
 
 template<typename T>
 Producer<T*> Produce(google::protobuf::RepeatedPtrField<T>* ts) {
-  return {
-    [&ts](Consumer<T*> c) {
-      for (auto& t : *ts) {
-        c(&t);
-      }
+  return [&ts](Consumer<T*> c) {
+    for (auto& t : *ts) {
+      c(&t);
     }
   };
 }
 
 template<typename T>
 Producer<const T*> Produce(const google::protobuf::RepeatedPtrField<T>& ts) {
-  return {
-    [&ts](Consumer<const T*> c) {
-      for (auto& t : ts) {
-        c(&t);
-      }
+  return [&ts](Consumer<const T*> c) {
+    for (auto& t : ts) {
+      c(&t);
     }
   };
 }

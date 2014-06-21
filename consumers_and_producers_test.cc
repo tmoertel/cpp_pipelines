@@ -50,7 +50,7 @@ class CPTest : public ::testing::Test {
   // final record is the effect reified.
   std::vector<EffectRecord> Fusing(Producer<Value> p, Consumer<Value> c) {
     flight_record_.clear();
-    p(c);
+    Fuse(p, c)();
     return flight_record_;
   }
 };
