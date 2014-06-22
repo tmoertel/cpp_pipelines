@@ -1,7 +1,8 @@
 package example;
 
-message Person {
+message Company {
   required string name = 1;
+  repeated Team teams = 3;
 };
 
 message Team {
@@ -10,7 +11,7 @@ message Team {
   repeated Person members = 3;
 }
 
-message Company {
+message Person {
   required string name = 1;
-  repeated Team teams = 3;
 };
+
