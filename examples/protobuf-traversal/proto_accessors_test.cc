@@ -42,7 +42,7 @@ static Filter<const Company*, const Team*> CompanyTeams{
 // Produce the manager of a team if the team has one.
 static Filter<const Team*, const Person*> TeamManager{
   [](const Team* p) {
-    return p->has_manager() ? MUnit(&p->manager()) : PZero<const Person*>();
+    return p->has_manager() ? PUnit(&p->manager()) : PZero<const Person*>();
   }
 };
 
@@ -54,13 +54,13 @@ static Filter<const Team*, const Person*> TeamMembers{
 // Produce the name of a team if it has one.
 static Filter<const Team*, const string*> TeamName{
   [](const Team* p) {
-    return p->has_name() ? MUnit(&p->name()) : PZero<const string*>();
+    return p->has_name() ? PUnit(&p->name()) : PZero<const string*>();
   }
 };
 
 // Produce the name of a person.
 static Filter<const Person*, const string*> PersonName{
-  [](const Person* p) { return MUnit(&p->name()); }
+  [](const Person* p) { return PUnit(&p->name()); }
 };
 
 

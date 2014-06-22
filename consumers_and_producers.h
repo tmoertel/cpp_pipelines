@@ -99,12 +99,12 @@ Consumer<B> Cofmap(const Fn<B, A>& f, const Consumer<A>& c) {
 
 // Producers are also monads.
 template <typename A>
-Producer<A> MUnit(const A& x) {
+Producer<A> PUnit(const A& x) {
   return [=](Consumer<A> c) { c(x); };
 }
 
 template <typename A>
-Producer<A> MJoin(Producer<Producer<A>> p_PA) {
+Producer<A> PJoin(Producer<Producer<A>> p_PA) {
   return [=](const Consumer<A>& c) {
     Consumer<Producer<A>> c_PA{ [=](Producer<A> p) { p(c); } };
     p_PA(c_PA);
@@ -112,14 +112,14 @@ Producer<A> MJoin(Producer<Producer<A>> p_PA) {
 }
 
 template <typename A, typename B>
-Producer<B> MBind(const Producer<A>& p, const Filter<A, B>& f) {
-  return MJoin(Fmap(f, p));
+Producer<B> PBind(const Producer<A>& p, const Filter<A, B>& f) {
+  return PJoin(Fmap(f, p));
 }
 
 // Infix version of bind.
 template <typename A, typename B>
 Producer<B> operator|(const Producer<A>& p, const Filter<A, B>& f) {
-  return MBind(p, f);
+  return PBind(p, f);
 }
 
 // Filters can be composed (value serial) to form chained filters.
