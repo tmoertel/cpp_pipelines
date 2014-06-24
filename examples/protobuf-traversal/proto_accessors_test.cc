@@ -26,9 +26,40 @@ template <typename A> struct RW { const A& ro; A* rw; };
 // A read-write filter that visits fields of type F on a probobuf of type P.
 template <typename P, typename F> using RWFilter = Filter<RW<P>, RW<F>>;
 
+// Convert a read-write filter into a read-only filter.
+template <typename P, typename F>
+Filter<const P&, const F&> ReadOnly(const RWFilter<P, F>& rwfilt) {
+  return [=](const P& p) {
+    return [=](const Consumer<const F&>& roc) {
+      Consumer<const RW<F>&> rwc = [&](const RW<F>& rwval) {
+        roc(rwval.ro);
+      };
+      rwfilt(RW<P>{p, nullptr})(rwc);
+    };
+  };
+};
+
+// Convert a read-write filter into a mutable pointer filter.
+template <typename P, typename F>
+Filter<P*, F*> ReadWrite(const RWFilter<P, F>& rwfilt) {
+  return [=](P* p) {
+    if (!p) {
+      return PZero<F*>();
+    }
+    return Producer<F*> {
+      [=](const Consumer<F*>& mpc) {
+        Consumer<const RW<F>&> rwc = [&](const RW<F>& rwval) {
+          mpc(rwval.rw);
+        };
+        rwfilt(RW<P>{*p, p})(rwc);
+      }
+    };
+  };
+};
+
 // Generic proto accessors for common field types.
 template <typename P>
-struct _proto_accessors {
+struct ProtoAccessors {
   // Accessors for reading, read-writing, and testing proto fields.
   template <typename F> using ROA = const F& (P::*)() const;
   template <typename F> using RWA = F* (P::*)();
@@ -69,7 +100,7 @@ struct _proto_accessors {
 
   template <typename F>
   static RWFilter<P, F> required_obj(ROA<F> roa, RWA<F> rwa) {
-    return [roa, rwa](const RW<P>& rwp) {
+    return [=](const RW<P>& rwp) {
       return PUnit<RW<F>>({access(rwp.ro, roa), access(rwp.rw, rwa)});
     };
   }
@@ -90,11 +121,11 @@ struct _proto_accessors {
   template <typename F>
   static const RWFilter<RepeatedPtrField<F>, F>& scan_ptrs() {
     static const auto& filter = *new RWFilter<RepeatedPtrField<F>, F> {
-      [](const RW<RepeatedPtrField<F>>& rwrpf) {
+      [](const RW<RepeatedPtrField<F>>& rw_rpf) {
         return [=](const Consumer<const RW<F>&>& c) {
           int i = 0;
-          for (const F& elem : rwrpf.ro) {
-            c(RW<F>{elem, rwrpf.rw ? rwrpf.rw->Mutable(i) : nullptr});
+          for (const F& ro_elem : rw_rpf.ro) {
+            c(RW<F>{ro_elem, rw_rpf.rw ? rw_rpf.rw->Mutable(i) : nullptr});
             ++i;
           }
         };
@@ -108,12 +139,13 @@ struct _proto_accessors {
 struct CompanyA {
   using Self = CompanyA;
   using P = Company;
-  using PA = _proto_accessors<P>;
-  template <typename Field> using PF = RWFilter<P, Field>;
+  using PA = ProtoAccessors<P>;
+  template <typename Field> using FA = RWFilter<P, Field>;
 
-  PF<string> name;
-  PF<Team> teams;
-  PF<RepeatedPtrField<Team>> teams_coll;
+  // Field accesors.
+  FA<string> name;
+  FA<Team> teams;
+  FA<RepeatedPtrField<Team>> teams_coll;
 
   static const Self& Use() {
     static const Self& rep = *new Self {
@@ -129,13 +161,14 @@ struct CompanyA {
 struct TeamA {
   using Self = TeamA;
   using P = Team;
-  using PA = _proto_accessors<P>;
-  template <typename Field> using PF = RWFilter<P, Field>;
+  using PA = ProtoAccessors<P>;
+  template <typename Field> using FA = RWFilter<P, Field>;
 
-  PF<Person> manager;
-  PF<Person> members;
-  PF<RepeatedPtrField<Person>> members_coll;
-  PF<string> name;
+  // Field accesors.
+  FA<Person> manager;
+  FA<Person> members;
+  FA<RepeatedPtrField<Person>> members_coll;
+  FA<string> name;
 
   static const Self& Use() {
     static const Self& rep = *new Self {
@@ -152,10 +185,11 @@ struct TeamA {
 struct PersonA {
   using Self = PersonA;
   using P = Person;
-  using PA = _proto_accessors<P>;
-  template <typename Field> using PF = RWFilter<P, Field>;
+  using PA = ProtoAccessors<P>;
+  template <typename Field> using FA = RWFilter<P, Field>;
 
-  PF<string> name;
+  // Field accesors.
+  FA <string> name;
 
   static const Self& Use() {
     static const Self& rep = *new Self {
@@ -163,37 +197,6 @@ struct PersonA {
     };
     return rep;
   }
-};
-
-// Convert a read-write filter into a read-only filter.
-template <typename P, typename F>
-Filter<const P&, const F&> ReadOnly(const RWFilter<P, F>& rwfilt) {
-  return [=](const P& p) {
-    return [=](const Consumer<const F&>& roc) {
-      Consumer<const RW<F>&> rwc = [&](const RW<F>& rwval) {
-        roc(rwval.ro);
-      };
-      rwfilt(RW<P>{p, nullptr})(rwc);
-    };
-  };
-};
-
-// Convert a read-write filter into a mutable pointer filter.
-template <typename P, typename F>
-Filter<P*, F*> ReadWrite(const RWFilter<P, F>& rwfilt) {
-  return [=](P* p) {
-    if (!p) {
-      return PZero<F*>();
-    }
-    return Producer<F*> {
-      [=](const Consumer<F*>& mpc) {
-        Consumer<const RW<F>&> rwc = [&](const RW<F>& rwval) {
-          mpc(rwval.rw);
-        };
-        rwfilt(RW<P>{*p, p})(rwc);
-      }
-    };
-  };
 };
 
 // END GENERATED CODE
@@ -301,7 +304,7 @@ TEST(ProtoAccessors, Basics) {
 
   // The * operator is fully distributive over + if you don't care about order.
   RunTestRO(c.teams * t.manager * p.name +  // Managers' names first.
-            c.teams * t.members * p.name,   // Then member's names.
+            c.teams * t.members * p.name,   // Then members' names.
             {"Prof. X",  // Now the sole manager is first.
              "Curly", "Larry", "Moe",
              "Colossus", "Wolverine",
