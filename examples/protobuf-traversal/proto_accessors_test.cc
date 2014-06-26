@@ -312,7 +312,7 @@ TEST(ProtoAccessors, Basics) {
 
   // Now let's run a read-write filter that unmasks X-Men.
   // First, we create a mutating consumer that makes the changes we want.
-  Consumer<string*> unmask_xmen = [&](string* name) {
+  Consumer<string*> unmask_xmen = [](string* name) {
     if (*name == "Colossus") {
       *name = "Piotr Rasputin";
     } else if (*name == "Prof. X") {
