@@ -8,8 +8,10 @@
 
 #include "gtest/gtest.h"
 
+using std::vector;
+
 template<typename T>
-Producer<T> Produce(std::vector<T> ts) {
+Producer<T> Produce(vector<T> ts) {
   return {
     [=](Consumer<T> c) {
       for (auto& t : ts) {
@@ -41,14 +43,14 @@ class CPTest : public ::testing::Test {
 
   using Value = std::string;
   using EffectRecord = std::pair<Value, Value>;
-  std::vector<EffectRecord> flight_record_;
-  std::vector<Producer<Value>> producers_;
-  std::vector<Consumer<Value>> consumers_;
+  vector<EffectRecord> flight_record_;
+  vector<Producer<Value>> producers_;
+  vector<Consumer<Value>> consumers_;
 
   // Reify the effect produced by fusing a producer and a consumer.
   // This we do by applying the effect to a "flight recorder"; the
   // final record is the effect reified.
-  std::vector<EffectRecord> Fusing(Producer<Value> p, Consumer<Value> c) {
+  vector<EffectRecord> Fusing(Producer<Value> p, Consumer<Value> c) {
     flight_record_.clear();
     Fuse(p, c)();
     return flight_record_;
