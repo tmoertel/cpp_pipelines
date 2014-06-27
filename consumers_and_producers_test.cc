@@ -128,6 +128,30 @@ TEST_F(CPTest, ProducerMustObeyMonadLaws) {
   }
 }
 
+// Applicative functor.
+TEST_F(CPTest, ProducerMustObeyApplicativeFunctorLaws) {
+  Fn<int, int> AddTen = [](int x) { return x + 10; };
+  Fn<int, int> Double = [](int x) { return 2 * x; };
+  auto produce_fns = Produce<Fn<int, int>>({AddTen, Double});
+  auto produce_123 = Produce<int>({1, 2, 3});
+  vector<int> recorder;
+  Consumer<int> record_int = [&recorder](int x) { recorder.push_back(x); };
+
+  PApply(produce_fns, produce_123)(record_int);
+  EXPECT_EQ(vector<int>({11, 12, 13, 2, 4, 6}), recorder);
+
+  recorder.clear();
+  LiftA(AddTen)(produce_123)(record_int);
+  EXPECT_EQ(vector<int>({11, 12, 13}), recorder);
+
+  std::function<int(int, int)> Add = [](int x, int y) { return x + y; };
+  recorder.clear();
+  LiftA2(Add)(produce_123, produce_123)(record_int);
+  EXPECT_EQ(vector<int>({2, 3, 4, 3, 4, 5, 4, 5, 6}), recorder);
+
+}
+
+
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

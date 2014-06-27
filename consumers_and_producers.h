@@ -122,6 +122,28 @@ Producer<B> operator|(const Producer<A>& p, const Filter<A, B>& f) {
   return PBind(p, f);
 }
 
+// Since producers are monads, they are also applicative functors.
+template <typename A, typename B>
+Producer<B> PApply(const Producer<Fn<A, B>>& p_FnAB, const Producer<A>& p_A) {
+  return p_FnAB |
+      Fn<Fn<A, B>, Producer<B>>([=](Fn<A, B> f) { return Fmap(f, p_A); });
+}
+
+template <typename A, typename B>
+Fn<const Producer<A>&, Producer<B>> LiftA(const Fn<A, B>& f) {
+  return [=](Producer<A> p) { return PApply(PUnit(f), p); };
+}
+
+template <typename A, typename B, typename C>
+std::function<Producer<C>(const Producer<A>&, const Producer<B>&)>
+LiftA2(const std::function<C(A,B)>& f) {
+  using std::placeholders::_1;
+  return [=](const Producer<A>& p_A, const Producer<B>& p_B) {
+    Fn<A, Fn<B, C>> Bind1 = [=](A x) { return std::bind(f, x, _1); };
+    return PApply(LiftA(Bind1)(p_A), p_B);
+  };
+}
+
 // Filters can be composed (value serial) to form chained filters.
 template <typename A, typename B, typename C>
 Filter<A, C> KleisliComposition(const Filter<A, B>& f, const Filter<B, C>& g) {
