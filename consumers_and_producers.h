@@ -144,6 +144,19 @@ LiftA2(const std::function<C(A,B)>& f) {
   };
 }
 
+template <typename A, typename B, typename C, typename D>
+std::function<Producer<D>(const Producer<A>&, const Producer<B>&,
+                          const Producer<C>&)>
+LiftA3(const std::function<D(A,B,C)>& f) {
+  using std::placeholders::_1;
+  return [=](const Producer<A>& p_A, const Producer<B>& p_B,
+             const Producer<C>& p_C) {
+    std::function<std::function<D(C)>(A, B)> Bind2 = [=](A x, B y) {
+      return std::bind(f, x, y, _1); };
+    return PApply(LiftA2(Bind2)(p_A, p_B), p_C);
+  };
+}
+
 // Filters can be composed (value serial) to form chained filters.
 template <typename A, typename B, typename C>
 Filter<A, C> KleisliComposition(const Filter<A, B>& f, const Filter<B, C>& g) {

@@ -149,6 +149,15 @@ TEST_F(CPTest, ProducerMustObeyApplicativeFunctorLaws) {
   LiftA2(Add)(produce_123, produce_123)(record_int);
   EXPECT_EQ(vector<int>({2, 3, 4, 3, 4, 5, 4, 5, 6}), recorder);
 
+  std::function<int(int, int, int)> Add3 =
+    [](int x, int y, int z) { return x + y + z;  };
+  recorder.clear();
+  LiftA3(Add3)(produce_123, produce_123, produce_123)(record_int);
+  EXPECT_EQ(vector<int>({3, 4, 5, 4, 5, 6, 5, 6, 7,
+                         4, 5, 6, 5, 6, 7, 6, 7, 8,
+                         5, 6, 7, 6, 7, 8, 7, 8, 9}),
+            recorder);
+
 }
 
 
