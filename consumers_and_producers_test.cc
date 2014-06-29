@@ -128,6 +128,15 @@ TEST_F(CPTest, ProducerMustObeyMonadLaws) {
   }
 }
 
+namespace {
+
+using int_string = std::pair<int, std::string>;
+int_string IntString(int i, const std::string& s) {
+  return std::make_pair(i, s);
+}
+
+}  // namespace
+
 // Applicative functor.
 TEST_F(CPTest, ProducerMustObeyApplicativeFunctorLaws) {
   Fn<int, int> AddTen = [](int x) { return x + 10; };
@@ -137,6 +146,10 @@ TEST_F(CPTest, ProducerMustObeyApplicativeFunctorLaws) {
   vector<int> recorder;
   Consumer<int> record_int = [&recorder](int x) { recorder.push_back(x); };
 
+  LiftA(AddTen)(PPure(3))(record_int);
+  EXPECT_EQ(vector<int>({13}), recorder);
+
+  recorder.clear();
   PApply(produce_fns, produce_123)(record_int);
   EXPECT_EQ(vector<int>({11, 12, 13, 2, 4, 6}), recorder);
 
@@ -146,18 +159,19 @@ TEST_F(CPTest, ProducerMustObeyApplicativeFunctorLaws) {
 
   std::function<int(int, int)> Add = [](int x, int y) { return x + y; };
   recorder.clear();
-  LiftA2(Add)(produce_123, produce_123)(record_int);
+  LiftA(Add)(produce_123, produce_123)(record_int);
   EXPECT_EQ(vector<int>({2, 3, 4, 3, 4, 5, 4, 5, 6}), recorder);
 
-  std::function<int(int, int, int)> Add3 =
-    [](int x, int y, int z) { return x + y + z;  };
-  recorder.clear();
-  LiftA3(Add3)(produce_123, produce_123, produce_123)(record_int);
-  EXPECT_EQ(vector<int>({3, 4, 5, 4, 5, 6, 5, 6, 7,
-                         4, 5, 6, 5, 6, 7, 6, 7, 8,
-                         5, 6, 7, 6, 7, 8, 7, 8, 9}),
-            recorder);
-
+  // Lifted functions must consume left-most producers slowest.
+  vector<int_string> int_string_recorder;
+  Consumer<int_string> record_int_string =
+      [&](const int_string& x) { int_string_recorder.push_back(x); };
+  auto produce_abc = Produce<std::string>({"a", "b", "c"});
+  LiftA(IntString)(produce_123, produce_abc)(record_int_string);
+  EXPECT_EQ(vector<int_string>({{1, "a"}, {1, "b"}, {1, "c"},
+                                {2, "a"}, {2, "b"}, {2, "c"},
+                                {3, "a"}, {3, "b"}, {3, "c"}}),
+            int_string_recorder);
 }
 
 
