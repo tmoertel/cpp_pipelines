@@ -3,6 +3,53 @@
 #include <functional>
 #include <tuple>
 #include <type_traits>
+#include <utility>
+
+
+//==============================================================================
+// First, some tragically necessary template boilerplate.
+//==============================================================================
+
+// Helper for elementwise processing of tuples.
+struct _TupleHelper {
+  // Tuple elems-by-indices idiom: http://stackoverflow.com/questions/7858817/.
+  template<int ...>
+  struct seq {};
+
+  template<typename ...>
+  struct type_pack {};
+
+  template<int N, int ...S>
+  struct gens : gens<N-1, N-1, S...> { };
+
+  template<int ...S>
+  struct gens<0, S...> {
+    typedef seq<S...> type;
+  };
+
+  template <int... Indices, typename... Types, typename F>
+  static std::function<void(std::tuple<Types...>)> _UnwrapTuple_indexed(
+      seq<Indices...>, type_pack<Types...>, F f) {
+    return [=](std::tuple<Types...> tup) {
+      return f(std::get<Indices>(tup)...);
+    };
+  }
+
+  template <typename F, typename... Types,
+	    typename = decltype(std::declval<F>()(
+		std::declval<std::tuple<Types...>>()))>
+  static F UnwrapTuple(F f) {
+    return f;
+  }
+
+  template <typename F, typename... Types,
+	    typename = decltype(std::declval<F>()(std::declval<Types>()...))>
+  static std::function<void(std::tuple<Types...>)> UnwrapTuple(F f) {
+    return _UnwrapTuple_indexed(typename gens<sizeof...(Types)>::type(),
+				type_pack<Types...>(),
+				f);
+  }
+};
 
 //==============================================================================
 // CORE MODEL
@@ -18,9 +65,22 @@ class Consumer {
 public:
   typedef T value_type;
   template <typename F> Consumer(const F& f) : f_(f) {}
-  void operator()(T t) const { f_(t); }
+  void operator()(value_type t) const { f_(t); }
 private:
-  Fn<T, void> f_;
+  Fn<value_type, void> f_;
+};
+
+// Specialize tuple consumers to let them also be constructed from
+// functions that accept the tuple's contents as elementwise.
+template <typename... Types>
+class Consumer<std::tuple<Types...>> {
+public:
+  typedef std::tuple<Types...> value_type;
+  template <typename F> Consumer(const F& f)
+      : f_(_TupleHelper::UnwrapTuple<F, Types...>(f)) {}
+  void operator()(value_type t) const { f_(t); }
+private:
+  Fn<value_type, void> f_;
 };
 
 // A producer is a value source. It can be called on a corresponding

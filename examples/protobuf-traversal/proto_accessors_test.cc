@@ -59,19 +59,7 @@ Filter<P*, F*> ReadWrite(const RWFilter<P, F>& rwfilt) {
 };
 
 // Helper for elementwise processing of tuples of read-write values.
-struct _TupleHelper {
-  // Tuple elems-by-indices idiom: http://stackoverflow.com/questions/7858817/.
-  template<int ...>
-  struct seq { };
-
-  template<int N, int ...S>
-  struct gens : gens<N-1, N-1, S...> { };
-
-  template<int ...S>
-  struct gens<0, S...> {
-    typedef seq<S...> type;
-  };
-
+struct _RWTupleHelper : public _TupleHelper {
   template<int... Indices, typename... Types>
   static std::tuple<const Types&...>
   TupleRO_indexed(seq<Indices...>, const std::tuple<RW<Types>...>& tup) {
@@ -84,7 +72,7 @@ struct _TupleHelper {
     return TupleRO_indexed(typename gens<sizeof...(Types)>::type(), tup);
   }
 
-  template<int... Indices, typename... Types>
+  template <int... Indices, typename... Types>
   static std::tuple<Types*...>
   TupleRW_indexed(seq<Indices...>, const std::tuple<RW<Types>...>& tup) {
     return std::tuple<Types*...>(std::get<Indices>(tup).rw...);
@@ -105,7 +93,7 @@ ReadOnly(const Filter<RW<P>, std::tuple<RW<Fs>...>>& rwfilt) {
     return [=](const Consumer<std::tuple<const Fs&...>>& roc) {
       Consumer<const std::tuple<RW<Fs>...>&> rwc =
           [&](const std::tuple<RW<Fs>...>& rwval) {
-        roc(_TupleHelper::TupleRO(rwval));
+        roc(_RWTupleHelper::TupleRO(rwval));
       };
       rwfilt(RW<P>{p, nullptr})(rwc);
     };
@@ -120,7 +108,7 @@ ReadWrite(const Filter<RW<P>, std::tuple<RW<Fs>...>>& rwfilt) {
     return [=](const Consumer<std::tuple<Fs*...>>& mpc) {
       Consumer<const std::tuple<RW<Fs>...>&> rwc =
           [&](const std::tuple<RW<Fs>...>& rwval) {
-        mpc(_TupleHelper::TupleRW(rwval));
+        mpc(_RWTupleHelper::TupleRW(rwval));
       };
       rwfilt(RW<P>{*p, p})(rwc);
     };
@@ -406,15 +394,16 @@ TEST(ProtoAccessors, Basics) {
              "Lone Wolf McQuade"});
 
   // Filter products.
-  // Let's get the names of all team members, paired with their managers.
+  // This filter gets the names of all team members, paired with their managers.
   auto manager_members_filter = c.teams * Fork(t.manager * p.name,
                                                t.members * p.name);
 
- vector<std::tuple<string, string>> manager_member_tuples;
+  vector<std::tuple<string, string>> manager_member_tuples;
   Consumer<std::tuple<string, string>> add_manager_member =
       [&](const std::tuple<string, string>& x) {
     manager_member_tuples.push_back(x); };
 
+  // Let's find the managed team members of the company.
   ReadOnly(manager_members_filter)(company)(add_manager_member);
   vector<std::tuple<string, string>> expected_results = {
     std::make_tuple("Charles Xavier", "Colossus"),
@@ -423,12 +412,10 @@ TEST(ProtoAccessors, Basics) {
   EXPECT_EQ(expected_results, manager_member_tuples);
 
   // Now let's add a has-manager marker to all managed members' names.
-  Consumer<const std::tuple<string*, string*>&> mark_managed_members =
-      [](const std::tuple<string*, string*>& manager_and_member) {
-    *std::get<1>(manager_and_member) += " (managed)";
-  };
-  // Add the marks.
-  ReadWrite(manager_members_filter)(&company)(mark_managed_members);
+  ReadWrite(manager_members_filter)(&company)(
+      [](string* /*manager*/, string* member_name) {
+        *member_name += " (managed)";
+      });
   // Verify that managed members have been marked.
   RunTestRO(c.teams * t.members * p.name,
             {"Curly", "Larry", "Moe",
