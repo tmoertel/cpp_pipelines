@@ -8,7 +8,8 @@
 
 gtest_flags = $$(gtest-config --cppflags --cxxflags --ldflags --libs)
 test_flags  = $(gtest_flags) -fprofile-arcs -ftest-coverage
-link_flags := $(link_flags) -lgcov
+link_flags := $(link_flags) -lgcov -lstdc++
+cxx         = clang --std=c++11
 
 obj_cc_files = $(objects:.o=.cc)
 
@@ -32,7 +33,7 @@ clean:
 	rm -rf $(tests) $(objects) coverage *.gc{da,no}
 
 %: %.cc
-	g++ --std=c++11 $(test_flags) $(link_flags) -o $@ $< $(objects)
+	$(cxx) $(test_flags) $(link_flags) -o $@ $< $(objects)
 
 %.o: %.cc
-	g++ --std=c++11 $(test_flags) -c -o $@ $?
+	$(cxx) $(test_flags) -c -o $@ $?

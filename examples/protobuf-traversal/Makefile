@@ -2,7 +2,7 @@ objects = example.pb.o
 tests = proto_accessors_test
 include ../../rules.mk
 
-link_flags := -lprotobuf
+link_flags := $(link_flags) -lprotobuf
 
 proto_accessors_test : ../../consumers_and_producers.h
 
