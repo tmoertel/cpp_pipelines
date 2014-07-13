@@ -1,6 +1,8 @@
 // An algebraic library for building pipelines.  -*- c++ -*-
 
 #include <functional>
+#include <tuple>
+#include <type_traits>
 
 //==============================================================================
 // CORE MODEL
@@ -159,6 +161,18 @@ LiftA(B (*f)(Args...)) {
   return LiftA(std::function<B(Args...)>(f));
 }
 
+// The cross product of producers is a producer of the cross product
+// of the produced values.
+template <typename... Args>
+std::tuple<Args...> make_tuple_byval(Args... xs) {
+  return std::make_tuple(xs...);
+}
+
+template <typename... Args>
+Producer<std::tuple<Args...>> Cross(Producer<Args>... ps) {
+  return LiftA(make_tuple_byval<Args...>)(ps...);
+}
+
 // Filters can be composed (value serial) to form chained filters.
 template <typename A, typename B, typename C>
 Filter<A, C> KleisliComposition(const Filter<A, B>& f, const Filter<B, C>& g) {
@@ -177,3 +191,32 @@ template <typename A, typename B>
 Filter<A, B> operator+(const Filter<A, B>& f, const Filter<A, B>& g) {
   return [=](A x) { return f(x) + g(x); };
 }
+
+// Filters support "forked" cross products if their input types are compatible.
+// First, some template machinery to compute filter input and output types.
+template <typename> struct _filter_input;
+template <typename In, typename Out>
+struct _filter_input<Filter<In, Out>> {
+  using type = In;
+};
+
+template <typename... FilterTypes>
+using _common_filter_input = typename std::common_type<
+    typename _filter_input<FilterTypes>::type...>::type;
+
+template <typename... FilterTypes>
+using _filter_outputs_product = std::tuple<
+    typename FilterTypes::result_type::value_type...>;
+
+// And, finally, the forked cross product of filters.
+template <typename... FilterTypes>
+Filter<_common_filter_input<FilterTypes...>,
+       _filter_outputs_product<FilterTypes...>>
+Fork(FilterTypes... filters) {
+  return [=](const _common_filter_input<FilterTypes...>& x) {
+    return Cross(filters(x)...);
+  };
+}
+
+// TODO: Implement Cross for filters:
+// Law:  Cross(f, h) * Cross(g, i) === Cross(f * g, h * i).

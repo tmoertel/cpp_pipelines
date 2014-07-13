@@ -174,6 +174,31 @@ TEST_F(CPTest, ProducerMustObeyApplicativeFunctorLaws) {
             int_string_recorder);
 }
 
+TEST_F(CPTest, ProducersAndFiltersMustSupportCrossProducts) {
+  auto produce_123 = Produce<int>({1, 2, 3});
+  auto produce_abc = Produce<std::string>({"a", "b", "c"});
+
+  using T = std::tuple<int, std::string>;
+  vector<T> tuple_recorder;
+  Consumer<T> record_tuple =
+  	  [&](const T& x) { tuple_recorder.push_back(x); };
+
+  // Cross product for producers.
+  Cross(produce_123, produce_abc)(record_tuple);
+  EXPECT_EQ(vector<T>({T{1, "a"}, T{1, "b"}, T{1, "c"},
+                       T{2, "a"}, T{2, "b"}, T{2, "c"},
+                       T{3, "a"}, T{3, "b"}, T{3, "c"}}),
+            tuple_recorder);
+
+  // Cross product for filters.
+  Filter<int, int> f123 = [&](int /*x*/) { return produce_123; };
+  Filter<int, std::string> fabc = [&](int /*x*/) { return produce_abc; };
+  auto previous_result = tuple_recorder;
+  tuple_recorder.clear();
+  Fork(f123, fabc)(1)(record_tuple);
+  EXPECT_EQ(previous_result, tuple_recorder);
+}
+
 
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
