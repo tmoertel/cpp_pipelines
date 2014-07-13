@@ -2,6 +2,7 @@
 // Tom Moertel <tom@moertel.com>
 
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "../../consumers_and_producers.h"
@@ -26,7 +27,7 @@ template <typename A> struct RW { const A& ro; A* rw; };
 // A read-write filter that visits fields of type F on a probobuf of type P.
 template <typename P, typename F> using RWFilter = Filter<RW<P>, RW<F>>;
 
-// Convert a read-write filter into a read-only filter.
+// Convert a read-write filter into a const-reference filter.
 template <typename P, typename F>
 Filter<const P&, const F&> ReadOnly(const RWFilter<P, F>& rwfilt) {
   return [=](const P& p) {
@@ -39,7 +40,7 @@ Filter<const P&, const F&> ReadOnly(const RWFilter<P, F>& rwfilt) {
   };
 };
 
-// Convert a read-write filter into a mutable pointer filter.
+// Convert a read-write filter into a mutable-pointer filter.
 template <typename P, typename F>
 Filter<P*, F*> ReadWrite(const RWFilter<P, F>& rwfilt) {
   return [=](P* p) {
@@ -53,6 +54,75 @@ Filter<P*, F*> ReadWrite(const RWFilter<P, F>& rwfilt) {
         };
         rwfilt(RW<P>{*p, p})(rwc);
       }
+    };
+  };
+};
+
+// Helper for elementwise processing of tuples of read-write values.
+struct _TupleHelper {
+  // Tuple elems-by-indices idiom: http://stackoverflow.com/questions/7858817/.
+  template<int ...>
+  struct seq { };
+
+  template<int N, int ...S>
+  struct gens : gens<N-1, N-1, S...> { };
+
+  template<int ...S>
+  struct gens<0, S...> {
+    typedef seq<S...> type;
+  };
+
+  template<int... Indices, typename... Types>
+  static std::tuple<const Types&...>
+  TupleRO_indexed(seq<Indices...>, const std::tuple<RW<Types>...>& tup) {
+    return std::tuple<const Types&...>(std::get<Indices>(tup).ro...);
+  }
+
+  template <typename... Types>
+  static std::tuple<const Types&...>
+  TupleRO(const std::tuple<RW<Types>...>& tup) {
+    return TupleRO_indexed(typename gens<sizeof...(Types)>::type(), tup);
+  }
+
+  template<int... Indices, typename... Types>
+  static std::tuple<Types*...>
+  TupleRW_indexed(seq<Indices...>, const std::tuple<RW<Types>...>& tup) {
+    return std::tuple<Types*...>(std::get<Indices>(tup).rw...);
+  }
+
+  template <typename... Types>
+  static std::tuple<Types*...>
+  TupleRW(const std::tuple<RW<Types>...>& tup) {
+    return TupleRW_indexed(typename gens<sizeof...(Types)>::type(), tup);
+  }
+};
+
+// Convert a filter of read-write tuples into one of const-reference tuples.
+template <typename P, typename... Fs>
+Filter<const P&, std::tuple<const Fs&...>>
+ReadOnly(const Filter<RW<P>, std::tuple<RW<Fs>...>>& rwfilt) {
+  return [=](const P& p) {
+    return [=](const Consumer<std::tuple<const Fs&...>>& roc) {
+      Consumer<const std::tuple<RW<Fs>...>&> rwc =
+          [&](const std::tuple<RW<Fs>...>& rwval) {
+        roc(_TupleHelper::TupleRO(rwval));
+      };
+      rwfilt(RW<P>{p, nullptr})(rwc);
+    };
+  };
+};
+
+// Convert a filter of read-write tuples into one of mutable-pointer tuples.
+template <typename P, typename... Fs>
+Filter<P*, std::tuple<Fs*...>>
+ReadWrite(const Filter<RW<P>, std::tuple<RW<Fs>...>>& rwfilt) {
+  return [=](P* p) {
+    return [=](const Consumer<std::tuple<Fs*...>>& mpc) {
+      Consumer<const std::tuple<RW<Fs>...>&> rwc =
+          [&](const std::tuple<RW<Fs>...>& rwval) {
+        mpc(_TupleHelper::TupleRW(rwval));
+      };
+      rwfilt(RW<P>{*p, p})(rwc);
     };
   };
 };
@@ -333,6 +403,36 @@ TEST(ProtoAccessors, Basics) {
             {"Curly", "Larry", "Moe",
              "Charles Xavier",  // Unmasked!
              "Colossus", "Wolverine",
+             "Lone Wolf McQuade"});
+
+  // Filter products.
+  // Let's get the names of all team members, paired with their managers.
+  auto manager_members_filter = c.teams * Fork(t.manager * p.name,
+                                               t.members * p.name);
+
+ vector<std::tuple<string, string>> manager_member_tuples;
+  Consumer<std::tuple<string, string>> add_manager_member =
+      [&](const std::tuple<string, string>& x) {
+    manager_member_tuples.push_back(x); };
+
+  ReadOnly(manager_members_filter)(company)(add_manager_member);
+  vector<std::tuple<string, string>> expected_results = {
+    std::make_tuple("Charles Xavier", "Colossus"),
+    std::make_tuple("Charles Xavier", "Wolverine"),
+  };
+  EXPECT_EQ(expected_results, manager_member_tuples);
+
+  // Now let's add a has-manager marker to all managed members' names.
+  Consumer<const std::tuple<string*, string*>&> mark_managed_members =
+      [](const std::tuple<string*, string*>& manager_and_member) {
+    *std::get<1>(manager_and_member) += " (managed)";
+  };
+  // Add the marks.
+  ReadWrite(manager_members_filter)(&company)(mark_managed_members);
+  // Verify that managed members have been marked.
+  RunTestRO(c.teams * t.members * p.name,
+            {"Curly", "Larry", "Moe",
+             "Colossus (managed)", "Wolverine (managed)",
              "Lone Wolf McQuade"});
 }
 
