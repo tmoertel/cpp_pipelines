@@ -20,34 +20,56 @@ struct _TupleHelper {
   struct type_pack {};
 
   template<int N, int ...S>
-  struct gens : gens<N-1, N-1, S...> { };
+  struct gens : gens<N-1, N-1, S...> {};
 
   template<int ...S>
   struct gens<0, S...> {
     typedef seq<S...> type;
   };
 
-  template <int... Indices, typename... Types, typename F>
-  static std::function<void(std::tuple<Types...>)> _UnwrapTuple_indexed(
-      seq<Indices...>, type_pack<Types...>, F f) {
+  template <typename R, int... Indices, typename... Types, typename F>
+  static std::function<R(std::tuple<Types...>)> _UncurryIndexed(
+      seq<Indices...>, type_pack<R, Types...>, F f) {
     return [=](std::tuple<Types...> tup) {
       return f(std::get<Indices>(tup)...);
     };
   }
 
+  // Convert a function that accepts a series of arguments into
+  // a function that accepts those arguments as a tuple.
+  // Case 1: The function already accepts a tuple: return it as is.
   template <typename F, typename... Types,
-	    typename = decltype(std::declval<F>()(
-		std::declval<std::tuple<Types...>>()))>
-  static F UnwrapTuple(F f) {
+            typename = decltype(std::declval<F>()(
+                std::declval<std::tuple<Types...>>()))>
+  static F Uncurry(F f) {
     return f;
   }
-
+  // Case 2: wrap the function within with logic that unpacks
+  // an argument tuple.
   template <typename F, typename... Types,
-	    typename = decltype(std::declval<F>()(std::declval<Types>()...))>
-  static std::function<void(std::tuple<Types...>)> UnwrapTuple(F f) {
-    return _UnwrapTuple_indexed(typename gens<sizeof...(Types)>::type(),
-				type_pack<Types...>(),
-				f);
+            typename R = decltype(std::declval<F>()(std::declval<Types>()...))>
+  static std::function<R(std::tuple<Types...>)> Uncurry(F f) {
+    return _UncurryIndexed(typename gens<sizeof...(Types)>::type(),
+                           type_pack<R, Types...>(),
+			   f);
+  }
+
+  template <typename F, typename... Funs, typename... Vals, int... Indices,
+	    typename R = decltype(std::declval<F>()(
+		std::declval<Funs>()(std::declval<Vals>())...))>
+  static R _ApplyElementwiseIndexed(
+      F f, seq<Indices...>, std::tuple<Vals...> tup, Funs... funs) {
+    return f(funs(std::get<Indices>(tup))...);
+  }
+
+  // Apply a series of functions elementwise to a tuple of values,
+  // and pass the resulting values as arguments into a function f.
+  template <typename F, typename... Funs, typename... Vals,
+	    typename R = decltype(std::declval<F>()(
+		std::declval<Funs>()(std::declval<Vals>())...))>
+  static R ApplyElementwise(F f, std::tuple<Vals...> tup, Funs... funs) {
+    return _ApplyElementwiseIndexed(f, typename gens<sizeof...(Vals)>::type(),
+				    tup, funs...);
   }
 };
 
@@ -71,13 +93,13 @@ private:
 };
 
 // Specialize tuple consumers to let them also be constructed from
-// functions that accept the tuple's contents as elementwise.
+// functions that accept the tuple's contents elementwise.
 template <typename... Types>
 class Consumer<std::tuple<Types...>> {
 public:
   typedef std::tuple<Types...> value_type;
   template <typename F> Consumer(const F& f)
-      : f_(_TupleHelper::UnwrapTuple<F, Types...>(f)) {}
+      : f_(_TupleHelper::Uncurry<F, Types...>(f)) {}
   void operator()(value_type t) const { f_(t); }
 private:
   Fn<value_type, void> f_;
@@ -229,7 +251,7 @@ std::tuple<Args...> make_tuple_byval(Args... xs) {
 }
 
 template <typename... Args>
-Producer<std::tuple<Args...>> Cross(Producer<Args>... ps) {
+Producer<std::tuple<Args...>> PCross(Producer<Args>... ps) {
   return LiftA(make_tuple_byval<Args...>)(ps...);
 }
 
@@ -252,8 +274,7 @@ Filter<A, B> operator+(const Filter<A, B>& f, const Filter<A, B>& g) {
   return [=](A x) { return f(x) + g(x); };
 }
 
-// Filters support "forked" cross products if their input types are compatible.
-// First, some template machinery to compute filter input and output types.
+// Some more template boilerplate, to prepare for filter cross products.
 template <typename> struct _filter_input;
 template <typename In, typename Out>
 struct _filter_input<Filter<In, Out>> {
@@ -262,21 +283,37 @@ struct _filter_input<Filter<In, Out>> {
 
 template <typename... FilterTypes>
 using _common_filter_input = typename std::common_type<
-    typename _filter_input<FilterTypes>::type...>::type;
+  typename _filter_input<FilterTypes>::type...>::type;
 
 template <typename... FilterTypes>
 using _filter_outputs_product = std::tuple<
-    typename FilterTypes::result_type::value_type...>;
+  typename FilterTypes::result_type::value_type...>;
 
-// And, finally, the forked cross product of filters.
-template <typename... FilterTypes>
-Filter<_common_filter_input<FilterTypes...>,
-       _filter_outputs_product<FilterTypes...>>
-Fork(FilterTypes... filters) {
-  return [=](const _common_filter_input<FilterTypes...>& x) {
-    return Cross(filters(x)...);
+// The general cross product of filters takes a tuple of arguments,
+// applies the filters to them elementwise, and then takes the cross
+// product of the resulting producers.
+// Law:  FCross(f, h) * FCross(g, i) === FCross(f * g, h * i).
+template <
+  typename... FilterTypes,
+  typename In = std::tuple<typename _filter_input<FilterTypes>::type...>,
+  typename Out = _filter_outputs_product<FilterTypes...> >
+Filter<In, Out> FCross(FilterTypes... filters) {
+  return [=](const In& tup) {
+    return _TupleHelper::ApplyElementwise(
+	PCross<typename FilterTypes::result_type::value_type...>,
+	tup,
+	filters...);
   };
 }
 
-// TODO: Implement Cross for filters:
-// Law:  Cross(f, h) * Cross(g, i) === Cross(f * g, h * i).
+// Filters support "forked" cross products if their input types are compatible.
+// Law: FFork(g, h)(x) === PCross(g(x), h(x))
+// Law: FFork(f, h) * FCross(g, i) === FFork(f * g, h * i).
+template <typename... FilterTypes>
+Filter<_common_filter_input<FilterTypes...>,
+       _filter_outputs_product<FilterTypes...> >
+FFork(FilterTypes... filters) {
+  return [=](const _common_filter_input<FilterTypes...>& x) {
+    return PCross(filters(x)...);
+  };
+}

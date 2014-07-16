@@ -395,8 +395,8 @@ TEST(ProtoAccessors, Basics) {
 
   // Filter products.
   // This filter gets the names of all team members, paired with their managers.
-  auto manager_members_filter = c.teams * Fork(t.manager * p.name,
-                                               t.members * p.name);
+  auto manager_members_filter = c.teams * FFork(t.manager * p.name,
+                                                t.members * p.name);
 
   vector<std::tuple<string, string>> manager_member_tuples;
   Consumer<std::tuple<string, string>> add_manager_member =
@@ -409,6 +409,14 @@ TEST(ProtoAccessors, Basics) {
     std::make_tuple("Charles Xavier", "Colossus"),
     std::make_tuple("Charles Xavier", "Wolverine"),
   };
+  EXPECT_EQ(expected_results, manager_member_tuples);
+
+  // An alternative way of writing the filter above is as follows,
+  // courtesy of the Fork/Cross law.
+  manager_member_tuples.clear();
+  ReadOnly(c.teams *
+           FFork(t.manager, t.members) *
+           FCross(p.name,   p.name))(company)(add_manager_member);
   EXPECT_EQ(expected_results, manager_member_tuples);
 
   // Now let's add a has-manager marker to all managed members' names.

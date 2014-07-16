@@ -184,7 +184,7 @@ TEST_F(CPTest, ProducersAndFiltersMustSupportCrossProducts) {
   	  [&](const T& x) { tuple_recorder.push_back(x); };
 
   // Cross product for producers.
-  Cross(produce_123, produce_abc)(record_tuple);
+  PCross(produce_123, produce_abc)(record_tuple);
   EXPECT_EQ(vector<T>({T{1, "a"}, T{1, "b"}, T{1, "c"},
                        T{2, "a"}, T{2, "b"}, T{2, "c"},
                        T{3, "a"}, T{3, "b"}, T{3, "c"}}),
@@ -195,8 +195,10 @@ TEST_F(CPTest, ProducersAndFiltersMustSupportCrossProducts) {
   Filter<int, std::string> fabc = [&](int /*x*/) { return produce_abc; };
   auto previous_result = tuple_recorder;
   tuple_recorder.clear();
-  Fork(f123, fabc)(1)(record_tuple);
+  FFork(f123, fabc)(1)(record_tuple);
   EXPECT_EQ(previous_result, tuple_recorder);
+
+  FCross(f123, fabc);
 }
 
 
