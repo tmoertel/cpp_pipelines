@@ -261,7 +261,8 @@ Filter<A, C> KleisliComposition(const Filter<A, B>& f, const Filter<B, C>& g) {
   return [=](A x) { return f(x) | g; };
 }
 
-// Infix version of KleisliComposition.
+// Infix version of KleisliComposition is filter "glue".
+// Read * as "into": filterA * filterB means "FilterA into FilterB".
 template <typename A, typename B, typename C>
 Filter<A, C> operator*(const Filter<A, B>& f, const Filter<B, C>& g) {
   return KleisliComposition(f, g);
