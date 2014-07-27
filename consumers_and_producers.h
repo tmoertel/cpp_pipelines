@@ -1,5 +1,8 @@
 // An algebraic library for building pipelines.  -*- c++ -*-
 
+#ifndef CONSUMERS_AND_PRODUCERS_H_
+#define CONSUMERS_AND_PRODUCERS_H_
+
 #include <functional>
 #include <tuple>
 #include <type_traits>
@@ -318,3 +321,5 @@ FFork(FilterTypes... filters) {
     return PCross(filters(x)...);
   };
 }
+
+#endif  // CONSUMERS_AND_PRODUCERS_H_
