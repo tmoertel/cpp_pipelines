@@ -124,6 +124,22 @@ private:
 
 // A filter takes an A and from it produces Bs.
 template <typename A, typename B> using Filter = Fn<A, Producer<B>>;
+//
+// Filters are the building blocks of most pipelines. As we will see
+// shortly, they combine in three ways:
+// (1) chains:         F * G        (read: "F into G")
+// (2) tees:           F + G        (read: "F and G")
+// (3) cross products: FCross(F, G) (read: "F cross G")
+//
+// The corresponding semantics (in Pythonesque generator syntax):
+//   (F * G)(x)           ==> for r in F(x):
+//                              for s in G(r):
+//                                yield s
+//   (F + G)(x)           ==> for r in F(x): yield r
+//                            for r in G(x): yield r
+//   FCross(F, G)({x, y}) ==> for r in F(x):
+//                              for s in G(y):
+//                                yield {r, s}
 
 //==============================================================================
 // COMBINATORS
@@ -178,13 +194,13 @@ Producer<B> Fmap(const Fn<A, B>& f, const Producer<A>& p) {
   };
 }
 
-// Consumers are cofunctors.
+// Consumers are covariant functors.
 template <typename A, typename B>
 Consumer<B> Cofmap(const Fn<B, A>& f, const Consumer<A>& c) {
   return [=](B x) { c(f(x)); };
 }
 
-// Producers are also monads.
+// Producers are also monads, with the expected unit, join, and bind functions.
 template <typename A>
 Producer<A> PUnit(const A& x) {
   return [=](Consumer<A> c) { c(x); };
@@ -209,7 +225,8 @@ Producer<B> operator|(const Producer<A>& p, const Filter<A, B>& f) {
   return PBind(p, f);
 }
 
-// Since producers are monads, they are also applicative functors.
+// Since producers are monads, they are also applicative functors,
+// with the expected pure, apply, and lifting functions.
 template <typename A>
 Producer<A> PPure(A x) {
   return PUnit(x);
@@ -258,20 +275,21 @@ Producer<std::tuple<Args...>> PCross(Producer<Args>... ps) {
   return LiftA(make_tuple_byval<Args...>)(ps...);
 }
 
-// Filters can be composed (value serial) to form chained filters.
+// Filters can be chained. (This is just Klielsi composition for the
+// underlying Producer monad.)
 template <typename A, typename B, typename C>
 Filter<A, C> KleisliComposition(const Filter<A, B>& f, const Filter<B, C>& g) {
   return [=](A x) { return f(x) | g; };
 }
 
-// Infix version of KleisliComposition is filter "glue".
+// The infix version of KleisliComposition is used to chain filters.
 // Read * as "into": filterA * filterB means "FilterA into FilterB".
 template <typename A, typename B, typename C>
 Filter<A, C> operator*(const Filter<A, B>& f, const Filter<B, C>& g) {
   return KleisliComposition(f, g);
 }
 
-// Filters can be composed (value parallel) to form Y filters.
+// Filters can also be composed to form T filters (value parallel).
 // Law: (filter1 + filter2)(x) = filter1(x) + filter2(x)
 template <typename A, typename B>
 Filter<A, B> operator+(const Filter<A, B>& f, const Filter<A, B>& g) {
